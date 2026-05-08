@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Sinuca Local - 2 Players</title>
+    <style>
+        body { background: #2c3e50; display: flex; flex-direction: column; align-items: center; color: white; font-family: sans-serif; }
+        canvas { background: #27ae60; border: 10px solid #7e522a; border-radius: 5px; cursor: crosshair; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .info { margin: 10px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h2>Sinuca Simples (2 Players)</h2>
+        <p>Arraste a bola branca com o mouse para dar a tacada!</p>
+    </div>
+    <canvas id="mesa" width="800" height="400"></canvas>
+
+    <script>
+        const canvas = document.getElementById('mesa');
+        const ctx = canvas.getContext('2d');
+
+        let bolas = [];
+        const atrito = 0.985;
+        let mouse = { x: 0, y: 0, pressionado: false };
+        let tacadaInicio = { x: 0, y: 0 };
+
+        class Bola {
+            constructor(x, y, cor, isBranca = false) {
+                this.x = x; this.y = y;
+                this.velX = 0; this.velY = 0;
+                this.raio = 12; this.cor = cor;
+                this.isBranca = isBranca;
+            }
+
+            desenhar() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.raio, 0, Math.PI * 2);
+                ctx.fillStyle = this.cor;
+                ctx.fill();
+                ctx.closePath();
+            }
+
+            atualizar() {
+                this.x += this.velX;
+                this.y += this.velY;
+                this.velX *= atrito;
+                this.velY *= atrito;
+
+                // Colisão com as bordas
+                if (this.x + this.raio > canvas.width || this.x - this.raio < 0) this.velX *= -1;
+                if (this.y + this.raio > canvas.height || this.y - this.raio < 0) this.velY *= -1;
+
+                // Parar se a velocidade for muito baixa
+                if (Math.abs(this.velX) < 0.1) this.velX = 0;
+                if (Math.abs(this.velY) < 0.1) this.velY = 0;
+            }
+        }
+
+        // Inicializar bolas (Branca + Triângulo de exemplo)
+        const branca = new Bola(150, 200, 'white', true);
+        bolas.push(branca);
+        bolas.push(new Bola(550, 200, 'red'));
+        bolas.push(new Bola(575, 185, 'yellow'));
+        bolas.push(new Bola(575, 215, 'blue'));
+
+        // Eventos de Mouse para a Tacada
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+
+            // Só permite tacada se a branca estiver parada
+            if (branca.velX === 0 && branca.velY === 0) {
+                let dist = Math.hypot(mouse.x - branca.x, mouse.y - branca.y);
+                if (dist < branca.raio * 2) {
+                    mouse.pressionado = true;
+                    tacadaInicio = { x: mouse.x, y: mouse.y };
+                }
+            }
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (mouse.pressionado) {
+                const rect = canvas.getBoundingClientRect();
+                let soltarX = e.clientX - rect.left;
+                let soltarY = e.clientY - rect.top;
+
+                // Força baseada na distância do arrasto
+                branca.velX = (tacadaInicio.x - soltarX) * 0.15;
+                branca.velY = (tacadaInicio.y - soltarY) * 0.15;
+                mouse.pressionado = false;
+            }
+        });
+
+        function resolverColisao(b1, b2) {
+            let dx = b2.x - b1.x;
+            let dy = b2.y - b1.y;
+            let distancia = Math.hypot(dx, dy);
+
+            if (distancia < b1.raio + b2.raio) {
+                // Troca básica de vetor para simular impacto
+                let angle = Math.atan2(dy, dx);
+                let sin = Math.sin(angle);
+                let cos = Math.cos(angle);
+
+                // Evitar sobreposição (empurra as bolas para fora uma da outra)
+                let overlap = (b1.raio + b2.raio) - distancia;
+                b1.x -= cos * (overlap / 2);
+                b1.y -= sin * (overlap / 2);
+                b2.x += cos * (overlap / 2);
+                b2.y += sin * (overlap / 2);
+
+                // Inversão simples de velocidade
+                let tempVelX = b1.velX;
+                let tempVelY = b1.velY;
+                b1.velX = b2.velX;
+                b1.velY = b2.velY;
+                b2.velX = tempVelX;
+                b2.velY = tempVelY;
+            }
+        }
+
+        function loop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Linha de mira
+            if (mouse.pressionado) {
+                ctx.beginPath();
+                ctx.moveTo(branca.x, branca.y);
+                ctx.lineTo(branca.x + (tacadaInicio.x - mouse.x), branca.y + (tacadaInicio.y - mouse.y));
+                ctx.strokeStyle = "rgba(255,255,255,0.5)";
+                ctx.stroke();
+            }
+
+            for (let i = 0; i < bolas.length; i++) {
+                bolas[i].atualizar();
+                bolas[i].desenhar();
+
+                for (let j = i + 1; j < bolas.length; j++) {
+                    resolverColisao(bolas[i], bolas[j]);
+                }
+            }
+            requestAnimationFrame(loop);
+        }
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+        });
+
+        loop();
+    </script>
+</body>
+</html>
